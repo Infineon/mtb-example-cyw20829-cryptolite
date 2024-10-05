@@ -73,6 +73,15 @@
 /* Available commands */
 #define CRYPTOLITE_AES_CTR ('1')
 #define CRYPTOLITE_AES_CFB ('2')
+#define CRYPTOLITE_SHA_256 ('3')
+#define CRYPTOLITE_TRNG    ('4')
+
+#define CRYPTOLITE_MESSAGE_DIGEST_SIZE       (32u)
+
+#define ASCII_7BIT_MASK                 (0x7F)
+
+#define PASSWORD_LENGTH                 (8u)
+#define ASCII_VISIBLE_CHARACTER_START   (33u)
 
 /*******************************************************************************
 * Data type definitions
@@ -81,7 +90,8 @@
 typedef enum
 {
     MESSAGE_ENTER_NEW,
-    MESSAGE_READY
+    MESSAGE_READY,
+    MENU
 } message_status_t;
 
 
@@ -94,6 +104,7 @@ extern cyhal_uart_t cy_retarget_io_uart_obj;
 
 
 /* Variables to hold the user message and the corresponding encrypted message */
+static uint8_t hash[CRYPTOLITE_MESSAGE_DIGEST_SIZE];
 static uint8_t message[MAX_MESSAGE_SIZE];
 static uint8_t encrypted_msg[MAX_MESSAGE_SIZE];
 static uint8_t decrypted_msg[MAX_MESSAGE_SIZE];
@@ -107,7 +118,7 @@ static uint8_t aes_key[AES128_KEY_LENGTH] = {0xAA, 0xBB, 0xCC, 0xDD,
 
 
 /******************************CTR Encryption**********************************/
-/* AES CFB MODE Initialization Vector*/
+/* AES CTR MODE Initialization Vector*/
 static uint8_t AesCtrIV[] =
 {
     0x00,0x01,0x02,0x03,
@@ -134,13 +145,178 @@ static uint8_t AesCfbIV_copied[16];
  *Function Definitions
  ******************************************************************************/
 
-void print_data(uint8_t* data, uint8_t len);
-void encrypt_message_cfb(uint8_t* message, uint8_t size);
-void decrypt_message_cfb(uint8_t* message, uint8_t size);
-void encrypt_message_ctr(uint8_t* message, uint8_t size);
-void decrypt_message_ctr(uint8_t* message, uint8_t size);
+static void print_data(uint8_t* data, uint8_t len);
+static void encrypt_message_cfb(uint8_t* message, uint8_t size);
+static void decrypt_message_cfb(uint8_t* message, uint8_t size);
+static void encrypt_message_ctr(uint8_t* message, uint8_t size);
+static void decrypt_message_ctr(uint8_t* message, uint8_t size);
+static void enter_message(void);
+static void message_ready(void);
 
+void generate_password(void);
+uint8_t check_range(uint8_t value);
 
+/* Variable to track the status of the message entered by the user */
+message_status_t msg_status = MENU;
+uint8_t msg_size = 0;
+static uint8_t mode = 0;
+/*******************************************************************************
+* Function Name: enter_message()
+********************************************************************************
+* Summary: Read the user input message
+*
+* Parameters:
+*  void
+*
+* Return:
+*  void
+*
+*******************************************************************************/
+
+static void enter_message(void)
+{
+    cy_rslt_t result;
+    result = cyhal_uart_getc(&cy_retarget_io_uart_obj,
+                             &message[msg_size],
+                             UART_INPUT_TIMEOUT_MS);
+    if (result == CY_RSLT_SUCCESS)
+    {
+        /* Check if the ENTER Key is pressed. If pressed, set the
+        message status as MESSAGE_READY.*/
+        if (message[msg_size] == '\r' || message[msg_size] == '\n')
+        {
+            message[msg_size]='\0';
+            msg_status = MESSAGE_READY;
+        }
+        else
+        {
+            cyhal_uart_putc(&cy_retarget_io_uart_obj,
+                            message[msg_size]);
+
+            /* Check if Backspace is pressed by the user. */
+            if(message[msg_size] != '\b')
+            {
+                msg_size++;
+            }
+            else
+            {
+                if(msg_size > 0)
+                {
+                    msg_size--;
+                }
+            }
+            /*Check if size of the message  exceeds MAX_MESSAGE_SIZE
+            (inclusive of the string terminating character '\0').*/
+            if (msg_size > (MAX_MESSAGE_SIZE - 1))
+            {
+                printf("\r\n\nMessage length exceeds %d characters!!!"\
+                    " Please enter a shorter message\r\nor edit the macro "\
+                    "MAX_MESSAGE_SIZE to suit your message size\r\n", MAX_MESSAGE_SIZE);
+
+                /* Clear the message buffer and set the msg_status to
+                   accept new message from the user. */
+                msg_status = MESSAGE_ENTER_NEW;
+                memset(message, 0, MAX_MESSAGE_SIZE);
+                msg_size = 0;
+                printf("\r\nEnter the message when more than limit:\r\n");
+            }
+         }
+    }
+}
+
+static void message_menu()
+{
+        uint8_t dst_cmd;
+        printf("\n\n\r Choose one of the following Cryptolite Mode :\r\n");
+        printf("\n\r (1) CTR (Counter) mode\r\n");
+        printf("\n\r (2) CFB (Cipher Feedback Block) mode\r\n");
+        printf("\n\r (3) SHA 256\r\n");
+        printf("\n\r (4) TRNG\r\n");
+        while(cyhal_uart_getc(&cy_retarget_io_uart_obj, &dst_cmd, 1)!= CY_RSLT_SUCCESS);
+        cyhal_uart_putc(&cy_retarget_io_uart_obj, dst_cmd);
+                if (CRYPTOLITE_AES_CTR == dst_cmd)
+                {
+                   mode = 1;
+                   msg_status = MESSAGE_ENTER_NEW;
+                  printf("\n\rEnter the message:\r\n");
+                }
+                else if (CRYPTOLITE_AES_CFB == dst_cmd)
+                {
+                   mode = 2;
+                   msg_status = MESSAGE_ENTER_NEW;
+                   printf("\n\rEnter the message:\r\n");
+                }
+                else if (CRYPTOLITE_SHA_256 == dst_cmd)
+                {
+                   mode = 3;
+                   msg_status = MESSAGE_ENTER_NEW;
+                   printf("\n\rEnter the message:\r\n");
+                }
+                else if(CRYPTOLITE_TRNG == dst_cmd)
+                {
+                    generate_password();
+                }
+                else
+                {
+                    printf("\r\nChoose the number between 1 to 4 \r\n");
+                }
+                
+}
+/*******************************************************************************
+* Function Name: message_ready()
+********************************************************************************
+* Summary: Function used to choose the various cryptolite mode
+*
+* Parameters:
+*  void
+*
+* Return:
+*  void
+*
+*******************************************************************************/
+static void message_ready(void)
+{
+        cy_en_cryptolite_status_t cryptolite_status = CY_CRYPTOLITE_SUCCESS;
+        cy_stc_cryptolite_context_sha256_t cfContext;
+        if (mode == 1)
+        {
+            printf("\n\r[Command] : AES CTR Mode\r\n");
+            encrypt_message_ctr(message, msg_size);
+            decrypt_message_ctr(message, msg_size);
+        }
+        else if (mode == 2)
+        {
+            printf("\n\r[Command] : AES CFB Mode\r\n");
+            encrypt_message_cfb(message, msg_size);
+            decrypt_message_cfb(message, msg_size);
+        }
+        else if (mode == 3)
+        {
+            cryptolite_status = Cy_Cryptolite_Sha256_Run(CRYPTOLITE,
+                                                         message,
+                                                         msg_size,
+                                                         hash,
+                                                         &cfContext);
+
+            if(cryptolite_status == CY_CRYPTOLITE_SUCCESS)
+            {
+            printf("\r\n\nHash Value for the message:\r\n\n");
+            print_data(hash,CRYPTOLITE_MESSAGE_DIGEST_SIZE);
+            }
+            else
+            {
+            CY_ASSERT(0);
+            }
+        }
+
+       /* Clear the message buffer and set the msg_status to accept
+        * new message from the user */
+
+        msg_status = MENU;
+        memset(message, 0, MAX_MESSAGE_SIZE);
+        msg_size = 0;
+        printf("\n\n\rChoose the option from the Menu:\r\n");
+}
 /*******************************************************************************
 * Function Name: main
 ********************************************************************************
@@ -158,11 +334,6 @@ void decrypt_message_ctr(uint8_t* message, uint8_t size);
 int main(void)
 {
     cy_rslt_t result;
-
-    uint8_t dst_cmd;
-    /* Variable to track the status of the message entered by the user */
-    message_status_t msg_status = MESSAGE_ENTER_NEW;
-    uint8_t msg_size = 0;
 
     /* Initialize the device and board peripherals */
     result = cybsp_init();
@@ -186,96 +357,28 @@ int main(void)
     {
         CY_ASSERT(0);
     }
-    printf("*****************CE : Cryptolite AES *****************\r\n");
+    printf("\r\n\n*****************Cryptolite Code Example*****************\r\n");
     printf("\r\n\nKey used for Encryption:\r\n");
     print_data(aes_key, AES128_KEY_LENGTH);
-    printf("\n\rEnter the message:\r\n");
     for (;;)
     {
         switch (msg_status)
         {
-            case MESSAGE_ENTER_NEW:
-            {
-                result = cyhal_uart_getc(&cy_retarget_io_uart_obj,
-                                        &message[msg_size],
-                                        UART_INPUT_TIMEOUT_MS);
-                if (result == CY_RSLT_SUCCESS)
-                    {
-                    /* Check if the ENTER Key is pressed. If pressed, set the
-                       message status as MESSAGE_READY.*/
-                    if (message[msg_size] == '\r' || message[msg_size] == '\n')
-                    {
-                        message[msg_size]='\0';
-                        msg_status = MESSAGE_READY;
-                    }
-                    else
-                    {
-                        cyhal_uart_putc(&cy_retarget_io_uart_obj,
-                                        message[msg_size]);
-
-                        /* Check if Backspace is pressed by the user. */
-                        if(message[msg_size] != '\b')
-                        {
-                            msg_size++;
-                        }
-                        else
-                        {
-                            if(msg_size > 0)
-                            {
-                                msg_size--;
-                            }
-                        }
-                        /*Check if size of the message  exceeds MAX_MESSAGE_SIZE
-                        (inclusive of the string terminating character '\0').*/
-                        if (msg_size > (MAX_MESSAGE_SIZE - 1))
-                        {
-                        printf("\r\n\nMessage length exceeds %d characters!!!"\
-                        " Please enter a shorter message\r\nor edit the macro "\
-                        "MAX_MESSAGE_SIZE to suit your message size\r\n", MAX_MESSAGE_SIZE);
-
-                        /* Clear the message buffer and set the msg_status to
-                            accept new message from the user. */
-                        msg_status = MESSAGE_ENTER_NEW;
-                        memset(message, 0, MAX_MESSAGE_SIZE);
-                        msg_size = 0;
-                        printf("\r\nEnter the message when more than limit:\r\n");
-                        break;
-                        }
-                    }
-                    }
+                case MESSAGE_ENTER_NEW:
+                {
+                    enter_message();
                     break;
                 }
 
                 case MESSAGE_READY:
                 {
-                printf("\n\n\r Choose one of the following AES Mode :\r\n");
-                printf("\n\r (1) CTR (Counter) mode\r\n");
-                printf("\n\r (2) CFB (Cipher Feedback Block) mode\r\n");
-                while(cyhal_uart_getc(&cy_retarget_io_uart_obj, &dst_cmd, 1)!= CY_RSLT_SUCCESS);
-                cyhal_uart_putc(&cy_retarget_io_uart_obj, dst_cmd);
-
-                if (CRYPTOLITE_AES_CTR == dst_cmd)
-                {
-                    printf("\n\r[Command] : AES CTR Mode\r\n");
-                    encrypt_message_ctr(message, msg_size);
-                    decrypt_message_ctr(message, msg_size);
+                    message_ready();
+                    break;
                 }
-                else if (CRYPTOLITE_AES_CFB == dst_cmd)
+                case MENU:
                 {
-                    printf("\n\r[Command] : AES CFB Mode\r\n");
-                    encrypt_message_cfb(message, msg_size);
-                    decrypt_message_cfb(message, msg_size);
-                }
-
-                /* Clear the message buffer and set the msg_status to accept
-                * new message from the user.
-                */
-
-                msg_status = MESSAGE_ENTER_NEW;
-                memset(message, 0, MAX_MESSAGE_SIZE);
-                msg_size = 0;
-                printf("\n\n\rEnter the message again to accept:\r\n");
-                break;
+                    message_menu();
+                    break;
                 }
             }
         }
@@ -296,7 +399,7 @@ int main(void)
 *
 *******************************************************************************/
 
-void print_data(uint8_t* data, uint8_t len)
+static void print_data(uint8_t* data, uint8_t len)
 {
     char print[10];
     for (uint32 i=0; i < len; i++)
@@ -325,8 +428,7 @@ void print_data(uint8_t* data, uint8_t len)
 *
 *******************************************************************************/
 
-
-void encrypt_message_cfb(uint8_t* message, uint8_t size)
+static void encrypt_message_cfb(uint8_t* message, uint8_t size)
 {
     cy_stc_cryptolite_aes_state_t aes_state;
     cy_stc_cryptolite_aes_buffers_t aesBuffers;
@@ -388,7 +490,7 @@ void encrypt_message_cfb(uint8_t* message, uint8_t size)
 *
 *******************************************************************************/
 
-void decrypt_message_cfb(uint8_t* message, uint8_t size)
+static void decrypt_message_cfb(uint8_t* message, uint8_t size)
 {
     cy_stc_cryptolite_aes_state_t aes_state;
     cy_stc_cryptolite_aes_buffers_t aesBuffers;
@@ -449,7 +551,7 @@ void decrypt_message_cfb(uint8_t* message, uint8_t size)
 *
 *******************************************************************************/
 
-void encrypt_message_ctr(uint8_t* message, uint8_t size)
+static void encrypt_message_ctr(uint8_t* message, uint8_t size)
 {
     uint32_t srcOffset;
     cy_stc_cryptolite_aes_state_t aes_state;
@@ -510,7 +612,7 @@ void encrypt_message_ctr(uint8_t* message, uint8_t size)
 *
 *******************************************************************************/
 
-void decrypt_message_ctr(uint8_t* message, uint8_t size)
+static void decrypt_message_ctr(uint8_t* message, uint8_t size)
 {
     uint32_t srcOffset;
     cy_stc_cryptolite_aes_state_t aes_state;
@@ -558,4 +660,84 @@ void decrypt_message_ctr(uint8_t* message, uint8_t size)
 
 }
 
+/*******************************************************************************
+* Function Name: generate_password
+********************************************************************************
+* Summary: This function generates a 8 character long password
+*
+* Parameters:
+*  None
+*
+* Return
+*  void
+*
+*******************************************************************************/
+void generate_password(void)
+{
+    int8_t index;
+    uint32_t random_val;
+    uint8_t temp_value = 0;
+
+    /* Array to hold the generated password. Array size is inclusive of
+       string NULL terminating character */
+    uint8_t password[PASSWORD_LENGTH + 1]= {0};
+
+    cy_en_cryptolite_status_t cryptolite_status = CY_CRYPTOLITE_SUCCESS;
+    cy_stc_cryptolite_trng_config_t config;
+    cryptolite_status = Cy_Cryptolite_Trng_Init(CRYPTOLITE,&config);
+
+    if (cryptolite_status == CY_CRYPTOLITE_SUCCESS)
+    {
+        for (index = 0; index < PASSWORD_LENGTH;)
+        {
+            /* Generate a random 32 bit number*/
+            cryptolite_status = Cy_Cryptolite_Trng(CRYPTOLITE, &random_val);
+            if(cryptolite_status!=CY_CRYPTOLITE_SUCCESS)
+            {
+            CY_ASSERT(0);
+            }
+            uint8_t bit_position  = 0;
+            for(int8_t j=0;j<4;j++)
+            {
+                /* extract byte from the bit position offset 0, 8, 16, and 24. */
+                temp_value=((random_val>>bit_position )& ASCII_7BIT_MASK);
+                temp_value=check_range(temp_value);
+                password[index++] = temp_value;
+                bit_position  = bit_position  + 8;
+            }
+         }
+
+        /* Terminate the password with end of string character */
+        password[index] = '\0';
+
+        /* Display the generated password on the UART Terminal */
+        printf("\nRandom Number: %s\r\n\n",password);
+
+        /* Free the TRNG generator block */
+        Cy_Cryptolite_Trng_DeInit(CRYPTOLITE);
+    }
+}
+
+/*******************************************************************************
+* Function Name: check_range
+********************************************************************************
+* Summary: This function check if the generated random number is in the
+*          range of alpha-numeric, special characters ASCII codes.
+*          If not, convert to that range
+*
+* Parameters:
+*  uint8_t
+*
+* Return
+*  uint8_t
+*
+*******************************************************************************/
+uint8_t check_range(uint8_t value)
+{
+    if (value < ASCII_VISIBLE_CHARACTER_START)
+    {
+         value += ASCII_VISIBLE_CHARACTER_START;
+    }
+     return value;
+}
 /* [] END OF FILE */

@@ -1,8 +1,8 @@
-# AES Cryptolite
+# Cryptolite
 
-This code example demonstrates the implementation of Cryptolite AES algorithm and how to encrypt and decrypt data using the CTR and CFB modes.
+This code example demonstrates the implementation of Cryptolite AES algorithm in CTR and CFB modes for encryption and decryption, as well as the SHA 256 algorithm for generating a 32-byte hash value and a one-time password (OTP) with true random number generation, displayed on a UART terminal emulator.
 
-[View this README on GitHub.](https://github.com/Infineon/mtb-example-cyw20829-cryptolite-aes)
+[View this README on GitHub.](https://github.com/Infineon/mtb-example-cyw20829-cryptolite)
 
 [Provide feedback on this code example.](https://cypress.co1.qualtrics.com/jfe/form/SV_1NTns53sK2yiljn?Q_EED=eyJVbmlxdWUgRG9jIElkIjoiQ0UyMjM1NDEiLCJTcGVjIE51bWJlciI6IjAwMi0yMzU0MSIsIkRvYyBUaXRsZSI6IkhBTDogSGVsbG8gd29ybGQiLCJyaWQiOiJraGF0cmluYXZpbmsiLCJEb2MgdmVyc2lvbiI6IjQuNS4wIiwiRG9jIExhbmd1YWdlIjoiRW5nbGlzaCIsIkRvYyBEaXZpc2lvbiI6Ik1DRCIsIkRvYyBCVSI6IklDVyIsIkRvYyBGYW1pbHkiOiJQU09DIn0=)
 
@@ -80,10 +80,10 @@ The 'project-creator-cli' tool can be used to create applications from a CLI ter
 
 Use a CLI terminal to invoke the 'project-creator-cli' tool. On Windows, use the command-line 'modus-shell' program provided in the ModusToolbox&trade; installation instead of a standard Windows command-line application. This shell provides access to all ModusToolbox&trade; tools. You can access it by typing "modus-shell" in the search box in the Windows menu. In Linux and macOS, you can use any terminal application.
 
-The following example clones the "[AES Cryptolite](https://github.com/Infineon/mtb-example-cyw20829-cryptolite-aes)" application with the desired name "AES Cryptolite" configured for the *CYW920829M2EVK-02* BSP into the specified working directory, *C:/mtb_projects*:
+The following example clones the "[Cryptolite](https://github.com/Infineon/mtb-example-cyw20829-cryptolite)" application with the desired name "Cryptolite" configured for the *CYW920829M2EVK-02* BSP into the specified working directory, *C:/mtb_projects*:
 
    ```
-   project-creator-cli --board-id CYW920829M2EVK-02 --app-id mtb-example-cyw20829-cryptolite-aes --user-app-name AES Cryptolite --target-dir "C:/mtb_projects"
+   project-creator-cli --board-id CYW920829M2EVK-02 --app-id mtb-example-cyw20829-cryptolite --user-app-name AES Cryptolite --target-dir "C:/mtb_projects"
    ```
 
 
@@ -191,24 +191,28 @@ For more details, see the [ModusToolbox&trade; tools package user guide](https:/
 
    **Figure 1. Terminal output on program startup**
 
-   ![](images/fig1.png)
+   ![](images/figure1.png)
 
 5. Read the user's input message and if it exceeds the `MAX_MESSAGE_SIZE` limit, prompt the user to enter a new message that is within the limit.
 
 
-6. Enter '1' to use AES CTR mode or '2' to use AES CFB mode. Then, the encryption and decryption takes place using the respective AES modes and the result is displayed on the UART terminal.
+6. Enter '1' to use AES CTR mode , '2' to use AES CFB mode ,'3' to use SHA-256 ,'4' to use TRNG . Then, the encryption and decryption takes place using the respective AES modes while the hash value is generated using the SHA-256 , true radom number will generate using TRNG and the result is displayed on the UART terminal.
 
-   **Figure 2. Terminal output asking the input for AES CTR mode or AES CFB mode**
+   **Figure 2. Terminal output showing AES CTR mode encryption and decryption**
 
-   ![](images/fig2.png)
+   ![](images/figure2.png)
 
-   **Figure 3. Terminal output showing AES CTR mode encryption and decryption**
+   **Figure 3. Terminal output showing AES CFB mode encryption and decryption**
 
-   ![](images/fig3.png)
+   ![](images/figure3.png)
 
-   **Figure 4. Terminal output showing AES CFB mode encryption and decryption**
+   **Figure 4. Terminal output showing SHA-256 for generating message digest**
 
-   ![](images/fig4.png)
+   ![](images/figure5.png)
+
+   **Figure 5. Terminal output showing TRNG for generating random number**
+
+   ![](images/figure4.png)
 
 ## Debugging
 
@@ -266,11 +270,12 @@ Infineon provides a wealth of data at [www.infineon.com](https://www.infineon.co
 
 ## Document history
 
-Document title: *CE239652* – *AES Cryptolite*
+Document title: *CE239652* – *Cryptolite*
 
  Version | Description of change
  ------- | ---------------------
  1.0.0   | New code example
+ 2.0.0   | Added SHA and TRNG 
 <br>
 
 All referenced product or service names and trademarks are the property of their respective owners.
