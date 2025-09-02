@@ -10,7 +10,7 @@ This code example demonstrates the implementation of Cryptolite AES algorithm in
 
 - [ModusToolbox&trade;](https://www.infineon.com/modustoolbox) v3.0 or later (tested with v3.0)
 - Board support package (BSP) minimum required version:
-  - CYW920829M2EVK-02: v1.0.1
+  - CYW920829M2EVK-02: v3.0.0
 - Programming language: C
 - Associated parts: All [AIROC&trade; CYW20829 Bluetooth&reg; LE SoC](https://www.infineon.com/cms/en/product/promopages/airoc20829)
 
@@ -276,6 +276,7 @@ Document title: *CE239652* – *Cryptolite*
  ------- | ---------------------
  1.0.0   | New code example
  2.0.0   | Added SHA and TRNG 
+ 2.1.0   | Updated new MPN
 <br>
 
 All referenced product or service names and trademarks are the property of their respective owners.
